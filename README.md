@@ -1,5 +1,7 @@
 # FPL Analytics
 
+![Tests](https://github.com/sidneytellman/fpl-analytics/actions/workflows/tests.yml/badge.svg)
+
 Automated Fantasy Premier League analytics. Every week, a GitHub Actions
 workflow fetches fresh player data from the FPL API, generates charts with
 Python, and publishes them to a live site.
