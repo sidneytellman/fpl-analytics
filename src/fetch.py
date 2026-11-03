@@ -19,7 +19,8 @@ def clean(data):
     players["team"] = players["team"].map(teams)
 
     cols = ["web_name", "team", "now_cost", "total_points", "minutes",
-            "expected_goals", "expected_assists", "selected_by_percent", "form"]
+            "goals_scored", "expected_goals", "expected_assists",
+            "selected_by_percent", "form"]
     players = players[cols]
 
     numeric = ["expected_goals", "expected_assists", "selected_by_percent", "form"]

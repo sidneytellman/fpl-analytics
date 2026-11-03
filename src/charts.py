@@ -31,12 +31,22 @@ def style(ax, fig, title, subtitle):
 
 
 def label_top(ax, df, x, y, n=10, by=None):
-    top = df.nlargest(n, by or y)
-    for r in top.itertuples():
-        ax.annotate(r.web_name, (getattr(r, x), getattr(r, y)),
-                    xytext=(0, -12), textcoords="offset points",
-                    ha="center", fontsize=8, fontweight="bold")
+    from adjustText import adjust_text
+    import matplotlib.patheffects as pe
 
+    top = df.nlargest(n, by or y)
+    texts = [
+        ax.text(getattr(r, x), getattr(r, y), r.web_name,
+                fontsize=8, fontweight="bold", zorder=5,
+                path_effects=[pe.withStroke(linewidth=3, foreground=BG)])
+        for r in top.itertuples()
+    ]
+    adjust_text(
+        texts, ax=ax,
+        x=top[x].values, y=top[y].values,
+        arrowprops=dict(arrowstyle="-", color="#555", lw=0.6),
+        expand=(1.3, 1.6),
+    )
 
 def xg_vs_xa(df):
     df = df[df["minutes"] >= 450].copy()
@@ -84,12 +94,40 @@ def value_chart(df):
     fig.savefig(DOCS_DIR / "value.png", dpi=150, facecolor=BG)
     plt.close(fig)
 
+def goals_vs_xg(df):
+    df = df[df["minutes"] >= 450].copy()
+    df["diff"] = df["goals_scored"] - df["expected_goals"]
+
+    fig, ax = plt.subplots(figsize=(9, 8))
+    ax.scatter(df["expected_goals"], df["goals_scored"],
+               s=90, c=GREY, edgecolors="#555", linewidths=0.5, alpha=0.8)
+
+    # Diagonal line: goals = xG
+    top = max(df["expected_goals"].max(), df["goals_scored"].max()) + 1
+    ax.plot([0, top], [0, top], ls="--", color="#333", lw=1)
+
+    # Highlight biggest overperformer in red
+    best = df.nlargest(1, "diff")
+    ax.scatter(best["expected_goals"], best["goals_scored"], s=160, c=RED, zorder=3)
+
+    # Label the 6 biggest over- and underperformers
+    df["abs_diff"] = df["diff"].abs()
+    label_top(ax, df, "expected_goals", "goals_scored", n=12, by="abs_diff")
+
+    ax.set_xlabel("Expected goals (xG)")
+    ax.set_ylabel("Goals scored")
+    style(ax, fig, "Who's beating their xG?",
+          "Above the line = scoring more than expected | 450+ minutes")
+    plt.subplots_adjust(top=0.88)
+    fig.savefig(DOCS_DIR / "goals_vs_xg.png", dpi=150, facecolor=BG)
+    plt.close(fig)
 
 def make_all():
     DOCS_DIR.mkdir(exist_ok=True)
     df = load_latest()
     xg_vs_xa(df)
     value_chart(df)
+    goals_vs_xg(df)
     print(f"Charts saved to {DOCS_DIR}")
 
 
