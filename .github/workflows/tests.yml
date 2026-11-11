@@ -12,8 +12,6 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - name: Lint with ruff
-        run: |
-          pip install ruff
-          ruff check src test
+        run: ruff check src test
       - name: Run tests
         run: python -m pytest

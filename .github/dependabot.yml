@@ -1,0 +1,14 @@
+# Checks for newer versions and opens a pull request for each update.
+# The Tests workflow runs on every pull request, so a breaking update shows up as a failed check.
+version: 2
+updates:
+  - package-ecosystem: "pip"            # requirements.txt
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "github-actions" # actions/checkout, actions/setup-python, ...
+    directory: "/"
+    schedule:
+      interval: "monthly"
