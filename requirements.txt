@@ -1,7 +1,7 @@
 # Pinned so every run (locally and in GitHub Actions) uses the same tested versions.
 # Dependabot opens a pull request when a newer version is released.
 requests==2.34.2
-pandas==3.1.0
+pandas==3.1.1
 matplotlib==3.11.2
 adjustText==1.4.0
 plotly==7.1.0
