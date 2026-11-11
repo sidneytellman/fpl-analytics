@@ -1,3 +1,6 @@
+import re
+from datetime import datetime
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
@@ -14,12 +17,29 @@ RED = "#e63946"
 BLUE = "#5b8fd1"
 
 
-def load_latest():
+def latest_file():
+    """Returns the path to the newest players_*.csv in data/."""
     files = sorted(DATA_DIR.glob("players_*.csv"))
     if not files:
         raise FileNotFoundError("No data yet - run src/fetch.py first")
-    print(f"Using {files[-1].name}")
-    return pd.read_csv(files[-1])
+    return files[-1]
+
+
+def load_latest():
+    path = latest_file()
+    print(f"Using {path.name}")
+    return pd.read_csv(path)
+
+
+def update_last_updated():
+    """Writes the date of the latest data file into the 'last updated' line in docs/index.html."""
+    data_date = latest_file().stem.replace("players_", "")        # e.g. "2026-11-11"
+    pretty_date = datetime.strptime(data_date, "%Y-%m-%d").strftime("%d %b %Y")
+    index_path = DOCS_DIR / "index.html"
+    html = index_path.read_text(encoding="utf-8")
+    html = re.sub(r'(<span id="last-updated">).*?(</span>)',
+                  rf"\g<1>{pretty_date}\g<2>", html)
+    index_path.write_text(html, encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +354,7 @@ def make_all():
     value_by_position_interactive(prepared)
     defensive_interactive(prepared)
 
+    update_last_updated()
     print(f"Charts saved to {DOCS_DIR}")
 
 
