@@ -56,10 +56,11 @@ def fetch_players():
 
 
 def fetch_all():
-    """Downloads players and upcoming fixtures. The team names come from the same player download."""
+    """Downloads players and upcoming fixtures. Also returns the raw player download,
+    which history.py needs for player IDs."""
     data = download()
     fixtures = download(FIXTURES_URL)
-    return clean(data), clean_fixtures(fixtures, data["teams"])
+    return data, clean(data), clean_fixtures(fixtures, data["teams"])
 
 
 def save(players):
@@ -77,6 +78,6 @@ def save_fixtures(fixtures):
 
 
 if __name__ == "__main__":
-    players, fixtures = fetch_all()
+    _, players, fixtures = fetch_all()
     save(players)
     save_fixtures(fixtures)

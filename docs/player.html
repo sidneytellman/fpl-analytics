@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FPL Player Search</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    body { font-family: Georgia, serif; background: #f4f4f2; color: #222;
+           max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+    a { color: #2b5797; }
+    h1 { margin-bottom: 4px; }
+    p.sub, .note { color: #777; }
+    p.sub { margin-top: 0; }
+    #search { width: 100%; box-sizing: border-box; font: inherit; font-size: 18px;
+              padding: 12px 14px; border: 1px solid #bbb; border-radius: 6px; background: white; }
+    #message { color: #777; margin-top: 12px; }
+    #profile { display: none; }
+    h2 { margin: 32px 0 4px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+             gap: 12px; margin: 20px 0; }
+    .card { background: white; border-radius: 6px; padding: 12px 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    .card .label { color: #888; font-size: 13px; }
+    .card .value { font-size: 22px; font-weight: bold; margin-top: 2px; }
+    .card.highlight .value { color: #e63946; }
+    .chart { background: white; border-radius: 6px; margin: 16px 0;
+             box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 6px;
+            overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    th, td { padding: 8px 12px; text-align: right; border-bottom: 1px solid #eee; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #eaeae6; font-weight: normal; color: #555; }
+    footer { color: #999; font-size: 14px; margin-top: 32px; }
+  </style>
+</head>
+<body>
+  <p><a href="index.html">← Back to all charts</a></p>
+  <h1>Player search</h1>
+  <p class="sub">Type a player's name to see their season so far and a projection for their next five fixtures.</p>
+
+  <input id="search" list="player-list" placeholder="e.g. Saka" autocomplete="off">
+  <datalist id="player-list"></datalist>
+  <div id="message">Loading players…</div>
+
+  <div id="profile">
+    <h2 id="player-name"></h2>
+    <p class="sub" id="player-meta"></p>
+    <div class="cards" id="cards"></div>
+
+    <div class="chart" id="points-chart"></div>
+    <div class="chart" id="cumulative-chart"></div>
+    <div class="chart" id="xg-chart"></div>
+
+    <h2>Previous seasons</h2>
+    <div id="past"></div>
+
+    <p class="note">
+      <strong>About the projection:</strong> a simple model, not a prediction.
+      It blends recent form (50%, last five matches played), this season's average (30%)
+      and last season's points per 90 scaled to the minutes the player gets now (20%),
+      then adjusts each fixture for its FPL difficulty rating. It does not know about
+      injuries, rotation or penalties, so use it alongside FPL's own expected points.
+    </p>
+  </div>
+
+  <footer>
+    Data: Fantasy Premier League API · <span id="updated"></span> ·
+    <a href="https://github.com/sidneytellman/fpl-analytics">Source code</a>
+  </footer>
+
+  <script>
+    const BG = "#f4f4f2", RED = "#e63946", BLUE = "#5b8fd1";
+    const search = document.getElementById("search");
+    const message = document.getElementById("message");
+    let players = [];
+
+    const labelFor = p => `${p.name} (${p.team})`;
+    const venue = home => (home ? "H" : "A");
+
+    fetch("data/players.json")
+      .then(response => response.json())
+      .then(data => {
+        players = data.players;
+        document.getElementById("updated").textContent = `Updated ${data.updated}`;
+        const list = document.getElementById("player-list");
+        players
+          .slice()
+          .sort((a, b) => b.total_points - a.total_points)
+          .forEach(p => {
+            const option = document.createElement("option");
+            option.value = labelFor(p);
+            list.appendChild(option);
+          });
+        message.textContent = `${players.length} players. Start typing a name.`;
+
+        // Open a player straight away if the link has ?id=123
+        const id = Number(new URLSearchParams(location.search).get("id"));
+        const linked = players.find(p => p.id === id);
+        if (linked) {
+          search.value = labelFor(linked);
+          showPlayer(linked);
+        }
+      })
+      .catch(() => {
+        message.textContent = "Could not load player data. If you opened this file directly, " +
+          "run a local server instead (see the README).";
+      });
+
+    search.addEventListener("input", () => {
+      const player = players.find(p => labelFor(p).toLowerCase() === search.value.trim().toLowerCase());
+      if (player) showPlayer(player);
+    });
+
+    function layout(title, yTitle) {
+      return {
+        title: { text: `<b>${title}</b>`, x: 0.03 },
+        paper_bgcolor: "white", plot_bgcolor: "white", height: 360,
+        margin: { t: 50, r: 20, b: 80, l: 55 },
+        yaxis: { title: yTitle, gridcolor: "#e5e5e5", zeroline: false },
+        xaxis: { tickangle: -45, type: "category" },
+        legend: { orientation: "h", x: 1, xanchor: "right", y: 1.12 },
+        hoverlabel: { bgcolor: "white", bordercolor: "#555" },
+      };
+    }
+
+    function addCard(container, label, value, highlight = false) {
+      const card = document.createElement("div");
+      card.className = "card" + (highlight ? " highlight" : "");
+      const labelEl = document.createElement("div");
+      labelEl.className = "label";
+      labelEl.textContent = label;
+      const valueEl = document.createElement("div");
+      valueEl.className = "value";
+      valueEl.textContent = value;
+      card.append(labelEl, valueEl);
+      container.appendChild(card);
+    }
+
+    function showPlayer(p) {
+      message.textContent = "";
+      history.replaceState(null, "", `?id=${p.id}`);
+      document.getElementById("profile").style.display = "block";
+      document.getElementById("player-name").textContent = p.name;
+      document.getElementById("player-meta").textContent = `${p.team} · ${p.position} · £${p.price.toFixed(1)}m`;
+
+      const played = p.history.filter(h => h.min > 0);
+      const goals = played.reduce((sum, h) => sum + h.goals, 0);
+      const assists = played.reduce((sum, h) => sum + h.assists, 0);
+      const nextProjection = p.projection.length ? p.projection[0].pts.toFixed(1) : "–";
+
+      const cards = document.getElementById("cards");
+      cards.innerHTML = "";
+      addCard(cards, "Total points", p.total_points);
+      addCard(cards, "Form", p.form.toFixed(1));
+      addCard(cards, "Goals / assists", `${goals} / ${assists}`);
+      addCard(cards, "Ownership", `${p.ownership.toFixed(1)}%`);
+      addCard(cards, "FPL expected next GW", p.fpl_expected_next.toFixed(1));
+      addCard(cards, "Our projection next GW", nextProjection, true);
+
+      // Points per gameweek, then the projection for the next fixtures
+      const label = h => `GW${h.gw} ${h.opp} (${venue(h.home)})`;
+      Plotly.newPlot("points-chart", [
+        {
+          type: "bar", name: "Points", x: p.history.map(label), y: p.history.map(h => h.pts),
+          marker: { color: BLUE },
+          customdata: p.history.map(h => h.min),
+          hovertemplate: "%{x}<br>%{y} pts · %{customdata} min<extra></extra>",
+        },
+        {
+          type: "bar", name: "Projection", x: p.projection.map(label), y: p.projection.map(f => f.pts),
+          marker: { color: "rgba(230, 57, 70, 0.45)", line: { color: RED, width: 1.5 } },
+          customdata: p.projection.map(f => f.difficulty),
+          hovertemplate: "%{x}<br>Projected %{y:.1f} pts · difficulty %{customdata}<extra></extra>",
+        },
+      ], layout("Points per gameweek and projection", "Points"), { responsive: true, displaylogo: false });
+
+      // Cumulative points across the season
+      let running = 0;
+      const cumulative = p.history.map(h => (running += h.pts));
+      Plotly.newPlot("cumulative-chart", [{
+        type: "scatter", mode: "lines+markers", name: "Total points",
+        x: p.history.map(label), y: cumulative, line: { color: RED, width: 3 },
+        hovertemplate: "%{x}<br>%{y} pts so far<extra></extra>",
+      }], layout("Points over the season", "Total points"), { responsive: true, displaylogo: false });
+
+      // Expected goals and assists per gameweek
+      Plotly.newPlot("xg-chart", [
+        {
+          type: "scatter", mode: "lines+markers", name: "xG", x: p.history.map(label),
+          y: p.history.map(h => h.xg), line: { color: RED },
+          customdata: p.history.map(h => h.goals),
+          hovertemplate: "%{x}<br>xG %{y:.2f} · goals %{customdata}<extra></extra>",
+        },
+        {
+          type: "scatter", mode: "lines+markers", name: "xA", x: p.history.map(label),
+          y: p.history.map(h => h.xa), line: { color: BLUE },
+          customdata: p.history.map(h => h.assists),
+          hovertemplate: "%{x}<br>xA %{y:.2f} · assists %{customdata}<extra></extra>",
+        },
+      ], layout("Expected goals and assists per gameweek", "Expected"), { responsive: true, displaylogo: false });
+
+      // Previous seasons table
+      const past = document.getElementById("past");
+      if (!p.past.length) {
+        past.innerHTML = '<p class="note">No previous Premier League seasons.</p>';
+        return;
+      }
+      const table = document.createElement("table");
+      table.innerHTML = "<tr><th>Season</th><th>Points</th><th>Minutes</th><th>Goals</th>" +
+                        "<th>Assists</th><th>Points per 90</th></tr>";
+      p.past.slice().reverse().forEach(s => {
+        const row = table.insertRow();
+        const per90 = s.min ? (s.pts / s.min * 90).toFixed(1) : "–";
+        [s.season, s.pts, s.min, s.goals, s.assists, per90].forEach(value => {
+          row.insertCell().textContent = value;
+        });
+      });
+      past.innerHTML = "";
+      past.appendChild(table);
+    }
+  </script>
+</body>
+</html>
