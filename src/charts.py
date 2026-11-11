@@ -170,8 +170,8 @@ def prepare(df):
     return df
 
 
-def place_labels(fig, df, top, x, y, plot_width=700, plot_height=520):
-    """Adds labels with leader lines, nudging each one until it no longer overlaps another label."""
+def label_annotations(df, top, x, y, plot_width=700, plot_height=520):
+    """Returns label annotations with leader lines, nudging each one until it no longer overlaps another."""
     x_min, x_max = df[x].min(), df[x].max()
     y_min, y_max = df[y].min(), df[y].max()
     px_per_x = plot_width / ((x_max - x_min) or 1)
@@ -181,6 +181,7 @@ def place_labels(fig, df, top, x, y, plot_width=700, plot_height=520):
     offsets = [(0, -24), (0, 24), (45, -20), (-45, -20), (45, 20), (-45, 20),
                (0, -48), (0, 48), (70, 0), (-70, 0)]
     placed = []
+    annotations = []
 
     for row in top.sort_values(y, ascending=False).itertuples():
         name = row.web_name
@@ -196,18 +197,38 @@ def place_labels(fig, df, top, x, y, plot_width=700, plot_height=520):
                 break
         placed.append(box)
 
-        fig.add_annotation(
+        annotations.append(dict(
             x=getattr(row, x), y=getattr(row, y), text=name,
             ax=offset_x, ay=offset_y,
             showarrow=True, arrowhead=0, arrowwidth=0.7, arrowcolor="#555",
             font=dict(size=11, color="#222"),
             bgcolor="rgba(244, 244, 242, 0.6)", borderpad=2,
-        )
+        ))
+    return annotations
+
+
+HOVER_COLS = ["web_name", "minutes", "team", "now_cost"]
+
+
+def split_groups(df, x, y, rank_by, n):
+    """Splits players into the rest (blue), top n (red) and the single best, plus their labels."""
+    top = df.nlargest(n, rank_by)
+    best = df.nlargest(1, rank_by)
+    rest = df.drop(top.index)
+    groups = [rest, top, best]
+    data = {
+        "x": [g[x].tolist() for g in groups],
+        "y": [g[y].tolist() for g in groups],
+        "customdata": [g[HOVER_COLS].values.tolist() for g in groups],
+    }
+    return data, label_annotations(df, top, x, y)
 
 
 def interactive_scatter(df, x, y, rank_by, x_label, y_label, title, subtitle,
-                        n=12, x_format=".2f", y_format=".2f"):
-    """Builds a Plotly scatter where every dot shows the player name on hover."""
+                        n=12, x_format=".2f", y_format=".2f",
+                        positions=("GK", "DEF", "MID", "FWD")):
+    """Builds a Plotly scatter where every dot shows the player name on hover,
+    with buttons to filter by position. Top players are re-ranked within each position."""
     hover = (
         "<b>%{customdata[0]}</b><br>"
         f"{x_label}: %{{x:{x_format}}}<br>"
@@ -215,41 +236,50 @@ def interactive_scatter(df, x, y, rank_by, x_label, y_label, title, subtitle,
         "Team: %{customdata[2]} | Price: £%{customdata[3]:.1f}m<br>"
         "Minutes: %{customdata[1]}<extra></extra>"
     )
-    top = df.nlargest(n, rank_by)
-    best = df.nlargest(1, rank_by)
-
-    rest = df.drop(top.index)
-    hover_cols = ["web_name", "minutes", "team", "now_cost"]
     marker_line = dict(color="#333", width=0.5)
+    data, annotations = split_groups(df, x, y, rank_by, n)
 
     fig = go.Figure()
     # Everyone outside the top group (blue)
     fig.add_trace(go.Scatter(
-        x=rest[x], y=rest[y], mode="markers", name="Other players",
+        x=data["x"][0], y=data["y"][0], customdata=data["customdata"][0],
+        mode="markers", name="Other players", hovertemplate=hover,
         marker=dict(size=10, color=BLUE, opacity=0.55, line=marker_line),
-        customdata=rest[hover_cols].values, hovertemplate=hover,
     ))
     # The top group (red)
     fig.add_trace(go.Scatter(
-        x=top[x], y=top[y], mode="markers", name=f"Top {n}",
+        x=data["x"][1], y=data["y"][1], customdata=data["customdata"][1],
+        mode="markers", name=f"Top {n}", hovertemplate=hover,
         marker=dict(size=13, color=RED, opacity=0.9, line=marker_line),
-        customdata=top[hover_cols].values, hovertemplate=hover,
     ))
     # The single best player (bigger red dot with a dark ring)
     fig.add_trace(go.Scatter(
-        x=best[x], y=best[y], mode="markers", name="Best", showlegend=False,
+        x=data["x"][2], y=data["y"][2], customdata=data["customdata"][2],
+        mode="markers", name="Best", showlegend=False, hovertemplate=hover,
         marker=dict(size=18, color=RED, line=dict(color="#222", width=2)),
-        customdata=best[hover_cols].values, hovertemplate=hover,
     ))
-    # Always-visible labels for the top players, spread out so they do not overlap
-    place_labels(fig, df, top, x, y)
+
+    # One button per position: swaps the dots and labels for that position's players
+    buttons = [dict(label="All", method="update", args=[data, {"annotations": annotations}])]
+    for position in positions:
+        subset = df[df["position"] == position]
+        if subset.empty:
+            continue
+        pos_data, pos_annotations = split_groups(subset, x, y, rank_by, n)
+        buttons.append(dict(label=position, method="update",
+                            args=[pos_data, {"annotations": pos_annotations}]))
 
     fig.update_layout(
         title=dict(text=f"<b>{title}</b><br><sup>{subtitle}</sup>", x=0.05),
         xaxis_title=x_label, yaxis_title=y_label,
-        plot_bgcolor=BG, paper_bgcolor=BG, height=700,
+        plot_bgcolor=BG, paper_bgcolor=BG, height=720,
+        margin=dict(t=130),
+        annotations=annotations,
         legend=dict(orientation="h", x=1, xanchor="right", y=1.02, yanchor="bottom"),
         hoverlabel=dict(bgcolor="white", font_size=13, bordercolor="#555"),
+        updatemenus=[dict(type="buttons", direction="right", buttons=buttons,
+                          x=0, xanchor="left", y=1.02, yanchor="bottom",
+                          bgcolor="white", bordercolor="#bbb", font=dict(size=12))],
     )
     fig.update_xaxes(gridcolor="#ccc", griddash="dot", zeroline=False)
     fig.update_yaxes(gridcolor="#ccc", griddash="dot", zeroline=False)
@@ -332,7 +362,7 @@ def defensive_interactive(df):
         "Expected goals conceded per 90", "Clean sheets",
         "Defensive returns: GK and DEF",
         "Left = conceding fewer chances | red = top 12 clean sheets per million",
-        y_format=".0f")
+        y_format=".0f", positions=("GK", "DEF"))
     save_html(fig, "defensive.html")
 
 
