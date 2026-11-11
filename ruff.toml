@@ -1,0 +1,6 @@
+line-length = 120
+
+[lint]
+# E/F = pycodestyle errors and pyflakes (unused imports, undefined names, ...)
+# I   = import sorting
+select = ["E", "F", "I"]

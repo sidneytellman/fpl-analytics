@@ -1,5 +1,5 @@
-from fetch import fetch_all, save, save_fixtures
 from charts import make_all
+from fetch import fetch_all, save, save_fixtures
 
 
 def main():

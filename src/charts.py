@@ -1,11 +1,11 @@
 import re
 from datetime import datetime
+from pathlib import Path
 
-import pandas as pd
 import matplotlib.pyplot as plt
+import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 DATA_DIR = ROOT / "data"
@@ -85,8 +85,8 @@ def style(ax, fig, title, subtitle):
 
 
 def label_top(ax, df, x, y, n=10, by=None):
-    from adjustText import adjust_text
     import matplotlib.patheffects as pe
+    from adjustText import adjust_text
 
     top = df.nlargest(n, by or y)
     texts = [
@@ -422,7 +422,8 @@ def fixture_difficulty_interactive(fixtures, n_gameweeks=5):
     ))
     fig.update_layout(
         title=dict(text="<b>Fixture difficulty</b><br>"
-                        f"<sup>Next {len(gameweeks)} gameweeks | easiest run at the top | FPL difficulty rating 1-5</sup>", x=0.05),
+                        f"<sup>Next {len(gameweeks)} gameweeks | easiest run at the top | "
+                        "FPL difficulty rating 1-5</sup>", x=0.05),
         plot_bgcolor=BG, paper_bgcolor=BG, height=820,
         yaxis=dict(autorange="reversed"), xaxis=dict(side="top"),
         hoverlabel=dict(bgcolor="white", font_size=13, bordercolor="#555"),
@@ -463,7 +464,8 @@ def trends_interactive(history, n=10):
 
     fig.update_layout(
         title=dict(text="<b>Trends over time</b><br>"
-                        f"<sup>Current top {n} by total points | one point per weekly update | click a name to hide it</sup>", x=0.05),
+                        f"<sup>Current top {n} by total points | one point per weekly update | "
+                        "click a name to hide it</sup>", x=0.05),
         yaxis_title=first_label, plot_bgcolor=BG, paper_bgcolor=BG, height=720,
         margin=dict(t=130),
         legend=dict(title="Player"),

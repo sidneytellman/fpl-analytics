@@ -1,7 +1,8 @@
-import requests
-import pandas as pd
 from datetime import date
 from pathlib import Path
+
+import pandas as pd
+import requests
 
 URL = "https://fantasy.premierleague.com/api/bootstrap-static/"
 FIXTURES_URL = "https://fantasy.premierleague.com/api/fixtures/?future=1"
