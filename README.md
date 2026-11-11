@@ -8,18 +8,25 @@ Python, and publishes them to a live site.
 
 **Live site:** https://sidneytellman.github.io/fpl-analytics/
 
+The charts on the live site are interactive: hover over any player to see
+their name, team, price and stats, and drag to zoom in.
+
 ![xG vs xA chart](docs/xg_vs_xa.png)
 
 ## How it works
 
 ```
-FPL API → fetch.py → data/*.csv → charts.py → docs/*.png → GitHub Pages
+FPL API → fetch.py → data/*.csv → charts.py → docs/*.html + docs/*.png → GitHub Pages
                  ↑
      GitHub Actions (every Tuesday 06:00 UTC)
 ```
 
-1. `src/fetch.py` pulls all player data from the FPL API and saves a dated CSV.
-2. `src/charts.py` loads the latest CSV and builds the charts.
+1. `src/fetch.py` pulls all player data from the FPL API, keeps the columns
+   the charts need (including position, clean sheets and expected goals
+   conceded), and saves a dated CSV.
+2. `src/charts.py` loads the latest CSV and builds two versions of each chart:
+   interactive HTML with Plotly for the live site, and static PNG images with
+   matplotlib for this README.
 3. `src/main.py` runs both steps in order.
 4. `.github/workflows/weekly.yml` runs the pipeline on a schedule and commits
    the new data and charts back to the repo.
@@ -27,18 +34,11 @@ FPL API → fetch.py → data/*.csv → charts.py → docs/*.png → GitHub Page
 
 ## Charts
 
-- **Who's creating and finishing the most?** Expected goals (xG) vs expected assists (xA).
-- **Best value in FPL right now.** Total points vs price, highlighting points per million.
+All charts include players with 450+ minutes. In each chart the top players
+are highlighted in red and labelled, and everyone else is shown in blue.
 
-## Run it locally
-
-```
-pip install -r requirements.txt
-python src/main.py
-```
-
-Charts are saved to `docs/`.
-
-## Tech
-
-Python · pandas · matplotlib · requests · GitHub Actions · GitHub Pages
+- **Who's creating and finishing the most?** Expected goals (xG) vs expected
+  assists (xA). Dashed lines mark the top 10% for each.
+- **Best value in FPL right now.** Total points vs price, highlighting points
+  per million.
+- **Best value by position.** The top
