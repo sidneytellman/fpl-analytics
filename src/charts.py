@@ -31,6 +31,15 @@ def load_latest():
     return pd.read_csv(path)
 
 
+def load_latest_fixtures():
+    """Returns the newest fixtures_*.csv, or None if there is none yet."""
+    files = sorted(DATA_DIR.glob("fixtures_*.csv"))
+    if not files:
+        return None
+    print(f"Using {files[-1].name}")
+    return pd.read_csv(files[-1])
+
+
 def update_last_updated():
     """Writes the date of the latest data file into the 'last updated' line in docs/index.html."""
     data_date = latest_file().stem.replace("players_", "")        # e.g. "2026-11-11"
@@ -366,6 +375,43 @@ def defensive_interactive(df):
     save_html(fig, "defensive.html")
 
 
+# Colours for fixture difficulty 1 (easiest) to 5 (hardest)
+FDR_COLORS = [[0.0, "#2a9d55"], [0.25, "#9fd8b0"], [0.5, "#e4e4e0"], [0.75, "#f4a3a8"], [1.0, "#c1121f"]]
+
+
+def fixture_difficulty_interactive(fixtures, n_gameweeks=5):
+    """Heatmap of every team's next fixtures, easiest run at the top."""
+    gameweeks = sorted(fixtures["gameweek"].unique())[:n_gameweeks]
+    upcoming = fixtures[fixtures["gameweek"].isin(gameweeks)].copy()
+    upcoming["label"] = upcoming["opponent"] + upcoming["home"].map({True: " (H)", False: " (A)"})
+
+    # A team can have two matches in a gameweek (double) or none (blank)
+    per_cell = upcoming.groupby(["team", "gameweek"]).agg(
+        difficulty=("difficulty", "mean"), label=("label", "<br>".join)).reset_index()
+    difficulty = per_cell.pivot(index="team", columns="gameweek", values="difficulty").reindex(columns=gameweeks)
+    labels = per_cell.pivot(index="team", columns="gameweek", values="label").reindex(columns=gameweeks)
+
+    # Sort by average difficulty; a blank gameweek counts as the hardest (5)
+    order = difficulty.fillna(5).mean(axis=1).sort_values().index
+    difficulty, labels = difficulty.loc[order], labels.loc[order].fillna("Blank")
+
+    fig = go.Figure(go.Heatmap(
+        z=difficulty.values, x=[f"GW{gw}" for gw in gameweeks], y=list(order),
+        text=labels.values, texttemplate="%{text}", textfont=dict(size=11),
+        colorscale=FDR_COLORS, zmin=1, zmax=5, xgap=2, ygap=2,
+        colorbar=dict(title="Difficulty", tickvals=[1, 2, 3, 4, 5], len=0.6),
+        hovertemplate="<b>%{y}</b> %{x}<br>%{text}<br>Difficulty: %{z:.0f}<extra></extra>",
+    ))
+    fig.update_layout(
+        title=dict(text="<b>Fixture difficulty</b><br>"
+                        f"<sup>Next {len(gameweeks)} gameweeks | easiest run at the top | FPL difficulty rating 1-5</sup>", x=0.05),
+        plot_bgcolor=BG, paper_bgcolor=BG, height=820,
+        yaxis=dict(autorange="reversed"), xaxis=dict(side="top"),
+        hoverlabel=dict(bgcolor="white", font_size=13, bordercolor="#555"),
+    )
+    save_html(fig, "fixture_difficulty.html")
+
+
 def make_all():
     DOCS_DIR.mkdir(exist_ok=True)
     df = load_latest()
@@ -383,6 +429,12 @@ def make_all():
     form_vs_ownership_interactive(prepared)
     value_by_position_interactive(prepared)
     defensive_interactive(prepared)
+
+    fixtures = load_latest_fixtures()
+    if fixtures is not None:
+        fixture_difficulty_interactive(fixtures)
+    else:
+        print("No fixtures data yet - skipping fixture difficulty chart")
 
     update_last_updated()
     print(f"Charts saved to {DOCS_DIR}")

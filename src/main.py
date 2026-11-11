@@ -1,11 +1,12 @@
-from fetch import fetch_players, save
+from fetch import fetch_all, save, save_fixtures
 from charts import make_all
 
 
 def main():
     print("Fetching FPL data...")
-    players = fetch_players()
+    players, fixtures = fetch_all()
     save(players)
+    save_fixtures(fixtures)
 
     print("Making charts...")
     make_all()
