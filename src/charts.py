@@ -31,6 +31,24 @@ def load_latest():
     return pd.read_csv(path)
 
 
+def load_history():
+    """Combines every weekly players_*.csv into one table with a date column."""
+    columns = ["web_name", "team", "now_cost", "total_points", "form", "selected_by_percent"]
+    weeks = []
+    for path in sorted(DATA_DIR.glob("players_*.csv")):
+        week = pd.read_csv(path)
+        if not set(columns).issubset(week.columns):
+            continue                     # skip any early file missing these columns
+        week = week[columns].copy()
+        week["date"] = pd.to_datetime(path.stem.replace("players_", ""))
+        weeks.append(week)
+    if not weeks:
+        return None
+    history = pd.concat(weeks, ignore_index=True)
+    history["player"] = history["web_name"] + " (" + history["team"] + ")"
+    return history
+
+
 def load_latest_fixtures():
     """Returns the newest fixtures_*.csv, or None if there is none yet."""
     files = sorted(DATA_DIR.glob("fixtures_*.csv"))
@@ -412,6 +430,53 @@ def fixture_difficulty_interactive(fixtures, n_gameweeks=5):
     save_html(fig, "fixture_difficulty.html")
 
 
+TREND_METRICS = [
+    ("total_points", "Total points", ".0f"),
+    ("form", "Form", ".1f"),
+    ("now_cost", "Price (£m)", ".1f"),
+    ("selected_by_percent", "Ownership (%)", ".1f"),
+]
+
+
+def trends_interactive(history, n=10):
+    """Line chart of the current top n players over time, with buttons to switch metric."""
+    latest = history[history["date"] == history["date"].max()]
+    top_players = latest.nlargest(n, "total_points")["player"].tolist()
+    history = history[history["player"].isin(top_players)].sort_values("date")
+
+    first_metric, first_label, first_format = TREND_METRICS[0]
+    fig = go.Figure()
+    for player in top_players:
+        rows = history[history["player"] == player]
+        fig.add_trace(go.Scatter(
+            x=rows["date"], y=rows[first_metric], mode="lines+markers", name=player,
+            hovertemplate=f"<b>{player}</b><br>%{{x|%d %b}}: %{{y:{first_format}}}<extra></extra>",
+        ))
+
+    # One button per metric: swaps the y-values (and hover text) of every line
+    buttons = []
+    for metric, label, number_format in TREND_METRICS:
+        y_values = [history.loc[history["player"] == p, metric].tolist() for p in top_players]
+        hovers = [f"<b>{p}</b><br>%{{x|%d %b}}: %{{y:{number_format}}}<extra></extra>" for p in top_players]
+        buttons.append(dict(label=label, method="update",
+                            args=[{"y": y_values, "hovertemplate": hovers}, {"yaxis.title.text": label}]))
+
+    fig.update_layout(
+        title=dict(text="<b>Trends over time</b><br>"
+                        f"<sup>Current top {n} by total points | one point per weekly update | click a name to hide it</sup>", x=0.05),
+        yaxis_title=first_label, plot_bgcolor=BG, paper_bgcolor=BG, height=720,
+        margin=dict(t=130),
+        legend=dict(title="Player"),
+        hoverlabel=dict(bgcolor="white", font_size=13, bordercolor="#555"),
+        updatemenus=[dict(type="buttons", direction="right", buttons=buttons,
+                          x=0, xanchor="left", y=1.02, yanchor="bottom",
+                          bgcolor="white", bordercolor="#bbb", font=dict(size=12))],
+    )
+    fig.update_xaxes(gridcolor="#ccc", griddash="dot", tickformat="%d %b")
+    fig.update_yaxes(gridcolor="#ccc", griddash="dot", zeroline=False)
+    save_html(fig, "trends.html")
+
+
 def make_all():
     DOCS_DIR.mkdir(exist_ok=True)
     df = load_latest()
@@ -435,6 +500,12 @@ def make_all():
         fixture_difficulty_interactive(fixtures)
     else:
         print("No fixtures data yet - skipping fixture difficulty chart")
+
+    history = load_history()
+    if history is not None and history["date"].nunique() >= 2:
+        trends_interactive(history)
+    else:
+        print("Need at least two weekly data files - skipping trends chart")
 
     update_last_updated()
     print(f"Charts saved to {DOCS_DIR}")
