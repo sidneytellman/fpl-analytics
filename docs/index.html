@@ -9,18 +9,22 @@
            max-width: 900px; margin: 0 auto; padding: 24px 16px; }
     h1 { margin-bottom: 4px; }
     p.sub { color: #777; margin-top: 0; }
-    img { width: 100%; height: auto; margin: 24px 0;
-          border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    iframe { width: 100%; height: 720px; border: 0; margin: 24px 0;
+             border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    iframe.tall { height: 920px; }
     footer { color: #999; font-size: 14px; margin-top: 32px; }
   </style>
 </head>
 <body>
   <h1>FPL Analytics</h1>
-  <p class="sub">Updated automatically every week with GitHub Actions.</p>
+  <p class="sub">Updated automatically every week with GitHub Actions. Hover over any dot or bar to see the player.</p>
 
-<img src="xg_vs_xa.png" alt="xG vs xA chart">
-<img src="value.png" alt="Points vs price chart">
-<img src="goals_vs_xg.png" alt="Goals vs xG chart">
+  <iframe src="xg_vs_xa.html" title="xG vs xA chart"></iframe>
+  <iframe src="value.html" title="Points vs price chart"></iframe>
+  <iframe class="tall" src="value_by_position.html" title="Best value by position chart"></iframe>
+  <iframe src="goals_vs_xg.html" title="Goals vs xG chart"></iframe>
+  <iframe src="form_vs_ownership.html" title="Form vs ownership chart"></iframe>
+  <iframe src="defensive.html" title="Defensive returns chart"></iframe>
 
   <footer>
     Data: Fantasy Premier League API ·
